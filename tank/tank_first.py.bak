@@ -1,0 +1,460 @@
+#/usr/bin/python2.7
+import sys,os
+import pygame
+from pygame.locals import *
+import math
+import random
+import time
+image_dir = os.path.join('.','image')
+window_size = (400,500)
+# direction : 0,up  1,down  2,left  3,right
+#
+#
+#pygame to std degree
+def degree_trans(degree):
+	return degree+180
+
+def angle_degree(angle):
+	return angle*180/math.pi
+
+def load_image(file):
+	path = os.path.join(image_dir,file)
+	if os.path.exists(path):
+		return  pygame.image.load(path).convert_alpha()
+	raise SystemExit("could not load imag!%s"%path)
+
+def random_pos(pos = window_size):
+	return (random.randint(0,pos[0]-50),random.randint(0,pos[1]-20))
+	
+def random_dit():
+	return (random.randint(0,4))
+
+#angle is std degree
+def rotate_img(img,angle):
+	return pygame.transform.rotate(img,angle)
+
+class Tank(pygame.sprite.Sprite):
+	images = []
+	container = None
+	all_container = []
+	def __init__(self,speed = 5):
+		pygame.sprite.Sprite.__init__(self)
+		self.image = self.images[0]
+		self.rect = self.image.get_rect()
+		self.direction = 0
+		self.speed = speed
+		self.change_dirt = False
+	def setpos(self,pos):
+		self.rect.move_ip(pos)
+	def update(self):
+		pos = self.direction.move(self.speed)
+		if not move_ok(pos):
+			pass
+		self.rect.move_ip(pos)
+		if self.change_dirt:
+			angle = self.direction.get_angle()
+			angle = trand_degree(angle)	
+			self.image = pygame.transform.rotate(self.image,angle)#images[]
+
+	def setDit(self,dit):
+		if self.direction != dit:
+			self.direction = dit
+			self.change_dirt = True
+	def run(self):
+		self.setSpeed()
+	def setSpeed(self,speed=5):
+		self.speed = speed
+	def stop(self):
+		self.speed = 0
+
+	def move_ok(self):	
+		for con in all_container:
+			if pygame.sprite.spritecollide(self,con,False):
+				return False
+		return True 		
+
+	def shoot(self):
+		return Bullet(self.rect.center,self.direction)
+
+
+
+class Wall(pygame.sprite.Sprite):
+	images = []
+	def __init__(self):
+		pygame.sprite.Sprite.__init__(self)
+		self.image = self.imags[0]
+		self.rect = self.image.get_rect()
+	def update(self):
+		pass
+
+class Explode(pygame.sprite.Sprite):
+	images = []
+	def __init__(self,pos):
+		pygame.sprite.Sprite.__init__(self)
+		self.image = self.images[0]
+		self.rect =self.image.get_rect()
+		self.rect.move_ip(pos)
+		self.count = 3 
+	def update(self):
+		self.count -= 1
+		if self.should_kill():
+			self.kill()
+
+	def should_kill(self):
+		if self.count <= 0:
+			return True
+		else:
+			return False
+
+class Bullet(pygame.sprite.Sprite):
+	images = []
+	def __init__(self,pos,direct):
+		pygame.sprite.Sprite.__init__(self)
+		self.image = self.images[direct]
+		self.rect = self.image.get_rect()
+		self.speed = 15 
+		self.direction = direct
+		pos = (pos[0] - self.rect.center[0],pos[1] + self.rect.center[1])
+		self.rect = pygame.Rect(pos,self.image.get_size())
+	def update(self):
+		pos = self.directin.move(speed)
+		self.rect.move_ip(pos)
+
+
+class bullet_light(pygame.sprite.Sprite):
+	image = None
+	def __init__(self,pos,direct,file):
+		pygame.sprite.Sprite.__init__(self)
+		angle = direct.get_angle()
+		rotate_img(self.image,direct.get_angle())
+		self.rect = self.image.get_rect()
+		self.rect.move_ip(pos)
+		self.direct = direct
+	def update(self):
+		self.direct.move(speed)
+
+# using pygame x,y
+# if want std angle should transform
+class Vector():
+	def __init__(self,x,y):
+		self.x = x
+		self.y = y
+	def __add__(self,vec):
+		return Vector(self.x + vec.x, self.y + vec.y)
+	def get_angel(self):
+		return math.atan(float(y)/x)
+	def __sub__(self,vec):
+		return Vector(self.x - vec.x, self.y - vec.y)
+	def set_special(self,dit_id):
+		#speical direction : 0:up, 1:down  2:left 3:right
+		if dit_id == 0:
+			self.x = 0
+			self.y = -1
+		elif dit_id = 1:
+			self.x = 0
+			self.y = 1
+		elif dit_id == 2:
+			self.x = -1
+			self.y = 0
+		elif dit_id == 3:
+			self.x = 1
+			self.y = 0
+	#return ^x and ^y
+	def move(self,len):
+		angel = self.get_angel()
+		return (len*math.sin(angel),len*math.cos(angel))
+
+
+class Battery(pygame.sprite.Sprite):
+		images = []
+	def __init__(self,pos):
+		pygame.sprite.Sprite(self)
+		self.direction = 0
+		self.image = self.images[0]
+		self.rect = self.image.get_rect()
+		self.rect.move_ip(pos)
+	def update(self):
+		self.rect.move_ip(self.direction.move(speed))
+
+# args must have function: draw,update
+class EventCtrl():
+	def __init__(self,ev_func_ku=None, ev_func_mouse=None,,ev_func_kd=None,draw_func=None ,fps = 20):
+		self.element = args
+		self.fps = fps
+		self.Clock = pygame.time.Clock()
+		self.ev_func = ev_func()
+		self.draw_func()
+		self.time = 0
+		self.timer_li = []
+		self.surface = None
+	def set_timer(self,time_tick_id,time_tick,func):
+		self.timer_li[time_tick_id] = {'time_tick':time_tick,'time_last':0,'func':func}
+		#self.time_li.append((time_tick,time_last,func,False))
+	def ev_key_down(self):
+		pass
+	def ev_key_up(self):
+		pass
+	def ev_mouse(self):
+		pass
+	def ev_quit(self):
+		going = False
+	def draw_func():
+		pass
+	def update_all(self):
+		pass
+	def event_loop(self):
+		going = True
+		while going:
+			for event in pygame.event.get():
+				if event.type == QUIT:
+					self.ev_quit()
+				elif event.type == KEYDOWN:
+					self.ev_key_down(evnet.key)
+				elif event.type = KEYUP:
+					self.ev_key_up(event.key)
+				elif evnet.type == MOUSE:
+					self.ev_mouse(event)
+			time_now = pygame.time.get_tick()
+			for id,ti in self.timer_li.items():
+				if time_now - ti['time_last'] >= ti['time_tick']:
+					ti['time_last'] = time_now
+					func = ti['func']
+					func()
+			self.ext_ctrl()
+			self.draw_func()
+			self.Clock.tick(self.fps)
+			pygame.display.flip()
+		self.end()
+	def end(self):
+		pygame.quit()
+		exit()
+	def ext_ctrl(self):
+		pass
+
+class TankEvent(EventCtrl):
+		player_group = None
+		enemy_group = None
+		player_bullet_group = None
+		enemy_bullet_group = None
+		explode_group = None
+		wall_group  = None
+		surface = None
+	def __init__(self):
+		EventCtrl.__init__(self)
+		self.set_timer(1,500,self.change_dirt)
+		self.set_timer(2,1000,self.shoot)
+		player_tk = player_group.Sprites()[0]
+	def ev_key_down(self,key):
+		direction = Vector(0,0)
+		if key == K_UP:
+			direction.setSpecial(0)
+			player_tk.setDit(direction)
+			player_tk.run()
+		elif key == K_DOWN:
+			direction.setSpecial(0)
+			player_tk.setDit(direction)
+			player_tk.run()
+		elif key == K_LEFT:
+			direction.setSpecial(0)
+			player_tk.setDit(direction)
+			player_tk.run()
+		elif key == K_RIGHT:
+			direction.setSpecial(0)
+			player_tk.setDit(direction)
+			player_tk.run()
+		elif key == K_SPACE:
+			bullet = player_tk.shoot()
+			player_bullet_group.add(bullet)
+	def ev_key_up(self):
+		if key in (K_DOWN,K_UP,K_LIFHT,K_RIGHT):
+			player_tk.stop()
+	def ev_mouse():
+		pass
+	def change_dirt(self):
+		for enemy in enemy_group.sprites():
+			enemy.setDit(random_dit())
+	def shoot(self):
+		for enemy in enemy_group.sprites():
+			enemy_bullet_group.add(enemy.shoot())
+	def draw_func(self):
+		player_group.draw(surface)
+		enemy_group.draw(surface)
+		player_bullet_group.draw(surface)
+		enemy_bullet_group.draw(surface)
+		exported_group.draw(sruface)
+		if wall_group:
+			wall_group.draw(surface)
+	
+	def level_up():
+		self.level_ctrl.next_level()
+	def ext_ctrl(self):
+		self.confilct_check(slef)
+		self.level_check(self)
+	def level_check(self):
+		if self.level_ctrl.should_level():
+			self.level_up()
+	def update_all(self):
+		player_group.update()
+		enemy_group.update()
+		player_bullet_group.update()
+		enemy_bullet.update()
+		if wall_group:
+			wall_group.update()
+	def confilct_check(self):
+		pygame.sprite.groupcollide(self.enemy_group,self.player_bullet_group,True,True)
+		pygame.sprite.groupcollide(self.player_bullet_group,self.enemy_bullet_group,True,True)
+
+class LevelCtrl():
+	def __init__(self,enemy_group):
+		self.enemy_group = enemy_group
+		self.cur_level = 1
+		self.data = {1:[Tank]*3,
+			     2:[Tank]*2+[battery],
+			     3:[battery]*3,
+				}
+	def enemy_empty()
+		if get_enemy_size() == 0:
+			return True
+		return False
+	def get_enemy_size():
+		return len(self.data[self.cur_level])
+	def next_level():
+		if self.cur_level < 3:
+			self.cur_level += 1
+			return self.product_enemy()
+		else:
+			return False
+	def product_enemy(self):
+		for enemy_base in self.data[self.cur_level]:
+			enemy = enemy_base()
+			enemy.setpos(random_pos())
+			self.enemy_group.add(enemy())
+		return True
+def app():
+	pygame.init()
+	pygame.font.init()
+	font = pygame.font.Font(None,50)
+	player_tk = pygame.sprite.Group()
+	enemy_tk =  pygame.sprite.Group()
+	bullet_enemy pygame.sprite.Group()
+	bullet_player = pygame.sprite.Goup()
+	LevelCtrl()
+	ev_ctrl = EventCtrl()
+	ev_ctrl.run()
+
+def main():
+	pygame.init()
+	pygame.font.init()
+	screen =pygame.display.set_mode(window_size)
+	clock  = pygame.time.Clock()
+	back_ground = load_image('floor.jpg').convert()
+	back_ground = pygame.transform.scale(back_ground,screen.get_size())
+	screen.blit(back_ground,screen.get_rect(),area=screen.get_rect())
+	tank_img = load_image('tank2.png').convert_alpha()
+	tank_img = pygame.transform.scale(tank_img,(40,20))
+	Tank.images.append(rotate_img(tank_img,90*3)) 
+	Tank.images.append(rotate_img(tank_img,90)) 
+	Tank.images.append(tank_img)
+	Tank.images.append(rotate_img(tank_img,90*2))
+	
+	bullet_img = load_image('bullet.png').convert_alpha()
+	bullet_img = pygame.transform.scale(bullet_img,(18,13))
+	Bullet.images.append(rotate_img(bullet_img, 90*3))
+	Bullet.images.append(rotate_img(bullet_img, 90))
+	Bullet.images.append(bullet_img)
+	Bullet.images.append(rotate_img(bullet_img , 90*2))
+	
+	explode_img = load_image('explosion1.gif')
+	explode_img = pygame.transform.scale(explode_img,(45,45))
+	Explode.images.append(explode_img)
+	explode = pygame.sprite.Group()
+
+	t = Tank()
+	player_tk = pygame.sprite.Group()
+	player_tk.add(t)
+	player_bullet_tk = pygame.sprite.Group()
+	enemy_bullet_tk = pygame.sprite.Group()
+	enemy_tk = pygame.sprite.Group()
+	enemy_size = 3
+	for i in xrange(enemy_size):
+		t2 = Tank()
+		t2.setpos(random_pos())
+		t2.setDit(random_dit())
+		enemy_tk.add(t2)
+
+	ti1,ti2 = 0,0
+	while t.alive():
+		for event in pygame.event.get():
+			if event.type == QUIT:
+				t.kill()
+			elif event.type == KEYDOWN and event.key == K_q:
+					t.kill()
+			elif event.type == KEYDOWN:
+				if event.key == K_UP:
+					t.setDit(0)
+					t.setSpeed(5)
+				elif event.key == K_DOWN:
+					t.setDit(1)
+					t.setSpeed(5)
+				elif event.key == K_LEFT:
+					t.setDit(2)
+					t.setSpeed(5)
+				elif event.key == K_RIGHT:
+					t.setDit(3)
+					t.setSpeed(5)
+				elif event.key == K_SPACE:
+					player_bullet_tk.add(t.shoot())
+			elif event.type == KEYUP:
+				if event.key in (K_UP,K_DOWN,K_RIGHT,K_LEFT):
+					t.setSpeed(0)
+		ti_now = pygame.time.get_ticks()
+		if ti_now - ti1 > 500:
+			ti1 = ti_now
+			for enemy in enemy_tk.sprites():
+				enemy.setDit(random_dit())
+				enemy.setSpeed(random.randint(0,10))
+		if ti_now - ti2 > 1000:
+			ti2 = ti_now
+			for enemy in enemy_tk.sprites():
+				enemy_bullet_tk.add(enemy.shoot())
+			 	
+		# if over or confilt?
+		pygame.sprite.groupcollide(player_tk,enemy_tk,True,True)
+		pygame.sprite.groupcollide(player_tk, enemy_bullet_tk,True,True)
+		sprite_dict = pygame.sprite.groupcollide(enemy_tk, player_bullet_tk,True,True)
+		for sprite_tk in sprite_dict.iterkeys():
+			pos = sprite_tk.rect.center
+			explode.add(Explode(pos))		
+
+		#re draw
+		explode.update()
+		screen.blit(back_ground,(0,0))
+		player_tk.update()
+		player_bullet_tk.update()
+		enemy_bullet_tk.update()
+		for enem in enemy_tk.sprites():
+			if not enem.update():
+				enem.setDit(random_dit())
+
+		explode.draw(screen)
+		player_bullet_tk.draw(screen)
+		player_tk.draw(screen)
+		enemy_bullet_tk.draw(screen)
+		enemy_tk.draw(screen)
+
+		pygame.display.flip()
+		clock.tick(20)
+	
+	font_type = pygame.font.get_default_font()
+	font =  pygame.font.Font(None,50)
+	w_surface = font.render('Game over',True,(255,255,255))
+	posx,posy = screen.get_rect().center
+	posx -= w_surface.get_rect().right/2
+	screen.blit(w_surface,(posx,posy))
+	pygame.display.flip()
+	time.sleep(2)
+	pygame.quit()
+	exit()
+
+if __name__ == '__main__':
+	main()
